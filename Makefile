@@ -2,7 +2,7 @@ start-docker:
 	cd mz-docker && docker-compose up -d
 
 stop-docker:
-	cd mz-docer && docker-compose down
+	cd mz-docker && docker-compose down
 
 restart-docker: stop-docker start-docker
 
