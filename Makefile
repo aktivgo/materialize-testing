@@ -6,6 +6,9 @@ stop-docker:
 
 restart-docker: stop-docker start-docker
 
+start-cli:
+	cd mz-docker && docker-compose run cli
+
 start-producer:
 	cd mz-service/producer && go run main.go
 

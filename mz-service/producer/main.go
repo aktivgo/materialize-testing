@@ -24,10 +24,26 @@ var (
 	resources = []uuid.UUID{
 		"1a34b742-1ec4-11ed-861d-0242ac120002",
 		"2a4aad70-1ec4-11ed-861d-0242ac120002",
+		"3a4aad70-1ec4-11ed-861d-0242ac120002",
+		"4a4aad70-1ec4-11ed-861d-0242ac120002",
+		"5a4aad70-1ec4-11ed-861d-0242ac120002",
+		"6a4aad70-1ec4-11ed-861d-0242ac120002",
+		"7a4aad70-1ec4-11ed-861d-0242ac120002",
+		"8a4aad70-1ec4-11ed-861d-0242ac120002",
+		"9a4aad70-1ec4-11ed-861d-0242ac120002",
+		"0a4aad70-1ec4-11ed-861d-0242ac120002",
 	}
 	leads = []uuid.UUID{
 		"1f486320-1ec4-11ed-861d-0242ac120002",
 		"24d36d76-1ec4-11ed-861d-0242ac120002",
+		"34d36d76-1ec4-11ed-861d-0242ac120002",
+		"44d36d76-1ec4-11ed-861d-0242ac120002",
+		"54d36d76-1ec4-11ed-861d-0242ac120002",
+		"64d36d76-1ec4-11ed-861d-0242ac120002",
+		"74d36d76-1ec4-11ed-861d-0242ac120002",
+		"84d36d76-1ec4-11ed-861d-0242ac120002",
+		"94d36d76-1ec4-11ed-861d-0242ac120002",
+		"04d36d76-1ec4-11ed-861d-0242ac120002",
 	}
 	types = []string{
 		"tg_send_text",
@@ -139,7 +155,14 @@ func getBody(leadId uuid.UUID, _type string) map[string]any {
 	case "tg_start":
 		body["text"] = "/start"
 	default:
-		body["text"] = "any text"
+		switch rand.Intn(3) {
+		case 0:
+			body["text"] = "any text"
+		case 1:
+			body["text"] = "/start"
+		case 2:
+			body["text"] = "like"
+		}
 	}
 
 	body["chat_id"] = leadId.String()[:1]

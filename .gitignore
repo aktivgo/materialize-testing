@@ -1,4 +1,5 @@
 .idea
+.DS_Store
 
 mz-docker/mzdata
 mz-docker/rpkdata

@@ -1,15 +1,20 @@
+version: '3.8'
+
 services:
   materialized:
-    image: materialize/materialized:v0.26.4
+    image: materialize/materialized
     container_name: materialized
     hostname: materialized
+    command:
+      - --workers
+      - "7"
     ports:
       - 6875:6875
     volumes:
       - "./mzdata:/mzdata"
     depends_on:
-      - redpanda
-    healthcheck: {test: curl -f localhost:6875, interval: 1s, start_period: 30s}
+      redpanda: { condition: service_healthy }
+    healthcheck: { test: curl -f localhost:6875, interval: 1s, start_period: 30s }
 
   cli:
     image: materialize/cli:v0.26.4
@@ -48,3 +53,20 @@ services:
       - 9092:9092
       - 28082:28082
       - 29092:29092
+    healthcheck: { test: curl -f localhost:9644/v1/status/ready, interval: 1s, start_period: 30s }
+
+
+  schema-registry:
+    image: confluentinc/cp-schema-registry:7.2.0
+    init: true
+    hostname: schema-registry
+    environment:
+      - SCHEMA_REGISTRY_KAFKASTORE_BOOTSTRAP_SERVERS=redpanda:29092
+      - SCHEMA_REGISTRY_HOST_NAME=schema-registry
+      - SCHEMA_REGISTRY_LISTENERS=http://schema-registry:8085,http://localhost:8085
+    ports:
+      - 8085:8085
+    depends_on:
+      redpanda: { condition: service_healthy }
+      materialized: { condition: service_healthy }
+    healthcheck: { test: curl -f localhost:8085, interval: 1s, start_period: 120s }
