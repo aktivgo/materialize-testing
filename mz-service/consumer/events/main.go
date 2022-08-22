@@ -15,8 +15,8 @@ import (
 const (
 	MaterializeUrl = "postgres://materialize@localhost:6875/materialize?sslmode=disable"
 
-	TriggersCount   = 10000
-	GoroutinesCount = 16
+	TriggersCount   = 1000000
+	GoroutinesCount = 100
 
 	KafkaAddress       = "redpanda:29092"
 	KafkaTriggersTopic = "triggers"
@@ -55,7 +55,9 @@ var (
 )
 
 type (
-	CreateViewParams struct {
+	ListenerParams struct {
+		ViewName   string    `json:"view_name"`
+		SinkName   string    `json:"sink_name"`
 		ResourceId uuid.UUID `json:"resource_id"`
 		LeadId     uuid.UUID `json:"lead_id"`
 		Type       string    `json:"type"`
@@ -77,6 +79,12 @@ type (
 		i int
 	}
 )
+
+func (c *Counter) increase() {
+	c.Lock()
+	defer c.Unlock()
+	c.i++
+}
 
 func main() {
 	ctx := context.Background()
@@ -114,26 +122,15 @@ func main() {
 					close(triggers)
 				}
 
-				viewParams := generateViewParams()
-				viewName, err := createView(ctx, conn, viewParams)
-				if err != nil {
+				listenerParams := generateListenerParams()
+				if err := createListener(ctx, conn, listenerParams); err != nil {
 					log.Println(err)
 					return
 				}
 
-				log.Printf("view [%s] created\n", viewName)
+				log.Printf("listener [%s %s] created\n", listenerParams.ViewName, listenerParams.SinkName)
 
-				sinkName, err := createSink(ctx, conn, viewName)
-				if err != nil {
-					log.Println(err)
-					return
-				}
-
-				log.Printf("sink [%s] created\n", sinkName)
-
-				counter.Lock()
-				counter.i++
-				counter.Unlock()
+				counter.increase()
 			}
 		}()
 	}
@@ -141,13 +138,17 @@ func main() {
 	wg.Wait()
 }
 
-func generateViewParams() CreateViewParams {
+func generateListenerParams() ListenerParams {
+	viewName := "view_" + base64.StdEncoding.EncodeToString([]byte(uuid.New()))
+	sinkName := "sink_" + base64.StdEncoding.EncodeToString([]byte(uuid.New()))
 	resourceId := resources[rand.Intn(len(resources))]
 	leadId := leads[rand.Intn(len(leads))]
 	_type := types[rand.Intn(len(types))]
 	timeDiff := rand.Int63n(10)
 
-	return CreateViewParams{
+	return ListenerParams{
+		ViewName:   viewName,
+		SinkName:   sinkName,
 		ResourceId: resourceId,
 		LeadId:     leadId,
 		Type:       _type,
@@ -155,16 +156,18 @@ func generateViewParams() CreateViewParams {
 	}
 }
 
-func createView(ctx context.Context, conn *pgxpool.Pool, params CreateViewParams) (string, error) {
-	viewName := "view_" + base64.StdEncoding.EncodeToString([]byte(uuid.New()))
+func createListener(ctx context.Context, conn *pgxpool.Pool, params ListenerParams) error {
 	workflowId := uuid.New()
 
-	createViewSQL := fmt.Sprintf(`CREATE OR REPLACE MATERIALIZED VIEW %s AS
+	//tx, err := conn.Begin(ctx)
+	//if err != nil {
+	//	return err
+	//}
+
+	createViewSQL := fmt.Sprintf(`CREATE MATERIALIZED VIEW %s AS
                     SELECT
-						'%s' as worflow_id,
-                        data->>'resource_id' AS resource_id,
-						data->>'lead_id' AS lead_id,
-						data->>'type' AS type,
+						'%s' AS view_name,
+						'%s' AS workflow_id,
 						data->>'body' AS body,
 						(data->>'timestamp')::int AS timestamp
                     FROM (SELECT CONVERT_FROM(data, 'utf8')::jsonb AS data FROM events_source)
@@ -175,7 +178,8 @@ func createView(ctx context.Context, conn *pgxpool.Pool, params CreateViewParams
 						data->>'type' IN (%s) AND
 						(data->>'timestamp')::int >= %d
 					;`,
-		viewName,
+		params.ViewName,
+		params.ViewName,
 		workflowId,
 		params.ResourceId,
 		params.LeadId,
@@ -185,32 +189,50 @@ func createView(ctx context.Context, conn *pgxpool.Pool, params CreateViewParams
 
 	_, err := conn.Exec(ctx, createViewSQL)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return viewName, nil
-}
+	//_, err = tx.Exec(ctx, createViewSQL)
+	//if err != nil {
+	//	if err := tx.Rollback(ctx); err != nil {
+	//		return err
+	//	}
+	//	return err
+	//}
 
-func createSink(ctx context.Context, conn *pgxpool.Pool, viewName string) (string, error) {
-	sinkName := "sink_" + base64.StdEncoding.EncodeToString([]byte(uuid.New()))
-
-	createViewSQL := fmt.Sprintf(`CREATE SINK %s
+	createSinkSQL := fmt.Sprintf(`CREATE SINK %s
 					FROM %s
 					INTO KAFKA BROKER '%s' TOPIC '%s'
+					CONSISTENCY (TOPIC '%s-consistency'
+             			FORMAT AVRO USING CONFLUENT SCHEMA REGISTRY 'http://schema-registry:8085')
+					WITH (reuse_topic=true)
 					FORMAT JSON
 					;`,
-		sinkName,
-		viewName,
+		params.SinkName,
+		params.ViewName,
 		KafkaAddress,
+		KafkaTriggersTopic,
 		KafkaTriggersTopic,
 	)
 
-	_, err := conn.Exec(ctx, createViewSQL)
+	_, err = conn.Exec(ctx, createSinkSQL)
 	if err != nil {
-		return "", err
+		return err
 	}
 
-	return sinkName, nil
+	//_, err = tx.Exec(ctx, createSinkSQL)
+	//if err != nil {
+	//	if err := tx.Rollback(ctx); err != nil {
+	//		return err
+	//	}
+	//	return err
+	//}
+	//
+	//if err = tx.Commit(ctx); err != nil {
+	//	return err
+	//}
+
+	return nil
 }
 
 func tail(ctx context.Context, conn *pgxpool.Pool, viewName string) {
@@ -264,7 +286,7 @@ func tail(ctx context.Context, conn *pgxpool.Pool, viewName string) {
 	}
 }
 
-func dropView(ctx context.Context, conn *pgxpool.Pool, viewName string) {
+func dropListener(ctx context.Context, conn *pgxpool.Pool, viewName string) {
 	dropViewSQL := fmt.Sprintf(`DROP VIEW %s;`, viewName)
 
 	_, err := conn.Exec(ctx, dropViewSQL)

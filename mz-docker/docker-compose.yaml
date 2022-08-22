@@ -14,6 +14,7 @@ services:
       - "./mzdata:/mzdata"
     depends_on:
       redpanda: { condition: service_healthy }
+      schema-registry: { condition: service_healthy }
     healthcheck: { test: curl -f localhost:6875, interval: 1s, start_period: 30s }
 
   cli:
@@ -66,7 +67,4 @@ services:
       - SCHEMA_REGISTRY_LISTENERS=http://schema-registry:8085,http://localhost:8085
     ports:
       - 8085:8085
-    depends_on:
-      redpanda: { condition: service_healthy }
-      materialized: { condition: service_healthy }
     healthcheck: { test: curl -f localhost:8085, interval: 1s, start_period: 120s }

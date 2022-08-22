@@ -12,5 +12,8 @@ start-cli:
 start-producer:
 	cd mz-service/producer && go run main.go
 
-start-consumer:
-	cd mz-service/consumer && go run main.go
+start-events-consumer:
+	cd mz-service/consumer/events && go run main.go
+
+start-triggers-consumer:
+	cd mz-service/consumer/triggers && go run main.go

@@ -52,13 +52,13 @@ var (
 )
 
 type KafkaEvent struct {
-	Direction  string         `json:"direction"`
-	ResourceId uuid.UUID      `json:"resource_id"`
-	LeadId     uuid.UUID      `json:"lead_id"`
-	Type       string         `json:"type"`
+	Direction  string         `avro:"direction" json:"direction"`
+	ResourceId uuid.UUID      `avro:"resource_id" json:"resource_id"`
+	LeadId     uuid.UUID      `avro:"lead_id" json:"lead_id"`
+	Type       string         `avro:"type" json:"type"`
 	ExternalId uuid.UUID      `json:"external_id"`
-	Body       map[string]any `json:"body"`
-	Timestamp  int64          `json:"timestamp"`
+	Body       map[string]any `avro:"body" json:"body"`
+	Timestamp  int64          `avro:"timestamp" json:"timestamp"`
 }
 
 func main() {
