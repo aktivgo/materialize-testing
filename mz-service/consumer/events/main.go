@@ -15,8 +15,8 @@ import (
 const (
 	MaterializeUrl = "postgres://materialize@localhost:6875/materialize?sslmode=disable"
 
-	TriggersCount   = 1000000
-	GoroutinesCount = 100
+	TriggersCount   = 50
+	GoroutinesCount = 1
 
 	KafkaAddress       = "redpanda:29092"
 	KafkaTriggersTopic = "triggers"
@@ -100,10 +100,10 @@ func main() {
 		log.Println("total created:", counter.i)
 	}()
 
-	triggers := make(chan bool, TriggersCount)
-	for i := 0; i < TriggersCount; i++ {
-		triggers <- true
-	}
+	//triggers := make(chan bool, TriggersCount)
+	//for i := 0; i < TriggersCount; i++ {
+	//	triggers <- true
+	//}
 
 	wg := sync.WaitGroup{}
 	for i := 0; i < GoroutinesCount; i++ {
@@ -112,20 +112,20 @@ func main() {
 		go func() {
 			defer wg.Done()
 
-			for {
-				_, more := <-triggers
-				if !more {
-					break
-				}
-
-				if len(triggers) == 0 {
-					close(triggers)
-				}
+			for j := 0; j < TriggersCount/GoroutinesCount; j++ {
+				//_, more := <-triggers
+				//if !more {
+				//	break
+				//}
+				//
+				//if len(triggers) == 0 {
+				//	close(triggers)
+				//}
 
 				listenerParams := generateListenerParams()
 				if err := createListener(ctx, conn, listenerParams); err != nil {
 					log.Println(err)
-					return
+					continue
 				}
 
 				log.Printf("listener [%s %s] created\n", listenerParams.ViewName, listenerParams.SinkName)
@@ -159,11 +159,6 @@ func generateListenerParams() ListenerParams {
 func createListener(ctx context.Context, conn *pgxpool.Pool, params ListenerParams) error {
 	workflowId := uuid.New()
 
-	//tx, err := conn.Begin(ctx)
-	//if err != nil {
-	//	return err
-	//}
-
 	createViewSQL := fmt.Sprintf(`CREATE MATERIALIZED VIEW %s AS
                     SELECT
 						'%s' AS view_name,
@@ -192,14 +187,6 @@ func createListener(ctx context.Context, conn *pgxpool.Pool, params ListenerPara
 		return err
 	}
 
-	//_, err = tx.Exec(ctx, createViewSQL)
-	//if err != nil {
-	//	if err := tx.Rollback(ctx); err != nil {
-	//		return err
-	//	}
-	//	return err
-	//}
-
 	createSinkSQL := fmt.Sprintf(`CREATE SINK %s
 					FROM %s
 					INTO KAFKA BROKER '%s' TOPIC '%s'
@@ -219,18 +206,6 @@ func createListener(ctx context.Context, conn *pgxpool.Pool, params ListenerPara
 	if err != nil {
 		return err
 	}
-
-	//_, err = tx.Exec(ctx, createSinkSQL)
-	//if err != nil {
-	//	if err := tx.Rollback(ctx); err != nil {
-	//		return err
-	//	}
-	//	return err
-	//}
-	//
-	//if err = tx.Commit(ctx); err != nil {
-	//	return err
-	//}
 
 	return nil
 }

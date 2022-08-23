@@ -7,7 +7,7 @@ services:
     hostname: materialized
     command:
       - --workers
-      - "7"
+      - "1"
     ports:
       - 6875:6875
     volumes:

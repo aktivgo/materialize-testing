@@ -114,11 +114,6 @@ func main() {
 }
 
 func deleteListener(ctx context.Context, conn *pgxpool.Pool, viewName, sinkName string) error {
-	//tx, err := conn.Begin(ctx)
-	//if err != nil {
-	//	return err
-	//}
-
 	dropViewSQL := fmt.Sprintf(`DROP VIEW %s;`, viewName)
 
 	_, err := conn.Exec(ctx, dropViewSQL)
@@ -126,32 +121,12 @@ func deleteListener(ctx context.Context, conn *pgxpool.Pool, viewName, sinkName 
 		return err
 	}
 
-	//_, err = tx.Exec(ctx, dropViewSQL)
-	//if err != nil {
-	//	if err := tx.Rollback(ctx); err != nil {
-	//		return err
-	//	}
-	//	return err
-	//}
-
 	dropSinkSQL := fmt.Sprintf(`DROP SINK %s;`, sinkName)
 
 	_, err = conn.Exec(ctx, dropSinkSQL)
 	if err != nil {
 		return err
 	}
-
-	//_, err = tx.Exec(ctx, dropSinkSQL)
-	//if err != nil {
-	//	if err := tx.Rollback(ctx); err != nil {
-	//		return err
-	//	}
-	//	return err
-	//}
-	//
-	//if err = tx.Commit(ctx); err != nil {
-	//	return err
-	//}
 
 	return nil
 }
