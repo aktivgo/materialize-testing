@@ -15,8 +15,8 @@ import (
 const (
 	MaterializeUrl = "postgres://materialize@localhost:6875/materialize?sslmode=disable"
 
-	TriggersCount   = 50
-	GoroutinesCount = 1
+	TriggersCount   = 10000
+	GoroutinesCount = 16
 
 	KafkaAddress       = "redpanda:29092"
 	KafkaTriggersTopic = "triggers"
@@ -93,17 +93,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	counter := Counter{i: 0}
+	counterSuccess := Counter{i: 0}
+	counterAll := Counter{i: 0}
 
 	defer func() {
 		conn.Close()
-		log.Println("total created:", counter.i)
+		log.Println("total created:", counterSuccess.i)
 	}()
-
-	//triggers := make(chan bool, TriggersCount)
-	//for i := 0; i < TriggersCount; i++ {
-	//	triggers <- true
-	//}
 
 	wg := sync.WaitGroup{}
 	for i := 0; i < GoroutinesCount; i++ {
@@ -112,15 +108,10 @@ func main() {
 		go func() {
 			defer wg.Done()
 
-			for j := 0; j < TriggersCount/GoroutinesCount; j++ {
-				//_, more := <-triggers
-				//if !more {
-				//	break
-				//}
-				//
-				//if len(triggers) == 0 {
-				//	close(triggers)
-				//}
+			for {
+				if counterAll.i == TriggersCount {
+					break
+				}
 
 				listenerParams := generateListenerParams()
 				if err := createListener(ctx, conn, listenerParams); err != nil {
@@ -130,7 +121,8 @@ func main() {
 
 				log.Printf("listener [%s %s] created\n", listenerParams.ViewName, listenerParams.SinkName)
 
-				counter.increase()
+				counterSuccess.increase()
+				counterAll.increase()
 			}
 		}()
 	}
@@ -190,15 +182,11 @@ func createListener(ctx context.Context, conn *pgxpool.Pool, params ListenerPara
 	createSinkSQL := fmt.Sprintf(`CREATE SINK %s
 					FROM %s
 					INTO KAFKA BROKER '%s' TOPIC '%s'
-					CONSISTENCY (TOPIC '%s-consistency'
-             			FORMAT AVRO USING CONFLUENT SCHEMA REGISTRY 'http://schema-registry:8085')
-					WITH (reuse_topic=true)
 					FORMAT JSON
 					;`,
 		params.SinkName,
 		params.ViewName,
 		KafkaAddress,
-		KafkaTriggersTopic,
 		KafkaTriggersTopic,
 	)
 
